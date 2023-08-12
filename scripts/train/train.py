@@ -224,6 +224,8 @@ def main(cfg: DictConfig):
 
     # Dataloaders
     print('Building train loader...')
+    print("DEVICE BATCH SIZE:", cfg.device_train_batch_size)
+    print("\ncfg.train_loader\n", cfg.train_loader)
     train_loader = build_dataloader(
         cfg.train_loader,
         tokenizer,
