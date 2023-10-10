@@ -19,6 +19,10 @@ attn_config_defaults: Dict = {
     'attn_uses_sequence_id': False,
     'alibi': False,
     'alibi_bias_max': 8,
+    'rope': False,
+    'rope_bf': 10000,
+    'rope_coefficient': 1.0,
+    'rope_shift': 0,
 }
 
 ffn_config_defaults: Dict = {
@@ -94,6 +98,10 @@ class MPTConfig(PretrainedConfig):
                     Defaults to ``False`` meaning any provided `sequence_id` will be ignored.
                 alibi (bool): Whether to use the alibi bias instead of position embeddings.
                 alibi_bias_max (int): The maximum value of the alibi bias.
+                rope (bool): Whether to use rotary positional embeddings.
+                rope_bf (int): The base frequency for rope.
+                rope_coefficient (float): The coefficient to multiply rope rotation angles by.
+                rope_shift (int): How many indices to shift the rope rotation angle function by.
                 kv_n_heads (Optional[int]): For grouped_query_attention only, allow user to specify number of kv heads.
             ffn_config (Dict): A dictionary used to configure the model's ffn module:
                 ffn_type (str): type of ffn to use. Options: mptmlp, te_ln_mlp
@@ -150,10 +158,10 @@ class MPTConfig(PretrainedConfig):
             del kwargs['name']
         if 'loss_fn' in kwargs:
             del kwargs['loss_fn']
-        if self.attn_config.get('alibi', False):
+        if self.attn_config.get('alibi', False) or self.attn_config.get('rope', False):
             self.learned_pos_emb = False
             warnings.warn(
-                f'alibi is turned on, setting `learned_pos_emb` to `False.`')
+                f'alibi or rope is turned on, setting `learned_pos_emb` to `False.`')
         super().__init__(**kwargs)
 
         self._validate_config()
@@ -217,9 +225,9 @@ class MPTConfig(PretrainedConfig):
             )
         if self.init_config.get('name', None) is None:
             raise ValueError(f"{self.init_config=} 'name' needs to be set.")
-        if not self.learned_pos_emb and not self.attn_config['alibi']:
+        if not (self.learned_pos_emb or self.attn_config['alibi'] or self.attn_config['rope']):
             warnings.warn(
-                f'Positional information not being provided to the model using either learned_pos_emb or alibi.'
+                f'Positional information not being provided to the model using either learned_pos_emb or alibi or rope.'
             )
         if self.fc_type == 'te' or self.ffn_config['ffn_type'] == 'te_ln_mlp':
             try:

@@ -15,6 +15,7 @@ from torch import nn
 
 from llmfoundry.models.layers.fc import FC_CLASS_REGISTRY
 from llmfoundry.models.layers.norm import NORM_CLASS_REGISTRY
+from llmfoundry.models.layers.rotary_embedding import apply_rotary_pos_emb
 
 
 def _reset_is_causal(num_query_tokens: int, num_key_tokens: int,
@@ -521,6 +522,8 @@ class GroupedQueryAttention(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         attn_bias: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor,
+                                   torch.Tensor]] = None,
         is_causal: bool = True,
         needs_weights: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[
@@ -538,6 +541,20 @@ class GroupedQueryAttention(nn.Module):
             ],
             dim=2,
         )
+
+        if rotary_emb is not None:
+            query = query.view(*(query.shape[:-1]), -1, self.head_dim)
+            key = key.view(*(key.shape[:-1]), -1, self.head_dim)
+            (cos, sin, pos) = rotary_emb
+            query = query.transpose(1, 2)
+            key = key.transpose(1, 2)
+            query, key = apply_rotary_pos_emb(query, key, cos, sin, pos)
+            query = query.transpose(1, 2)
+            key = key.transpose(1, 2)
+
+            query = query.reshape(*(query.shape[:-2]), self.d_model)
+            key = key.reshape(*(key.shape[:-2]),
+                              self.kv_n_heads * self.head_dim)
 
         key_padding_mask = attention_mask
 
